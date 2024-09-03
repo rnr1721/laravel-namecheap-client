@@ -23,7 +23,7 @@ The application provides a user-friendly interface to manage Namecheap domains a
 
 1. Clone the project
 ```shell
-git clone https://github.com/rnr1721/laravel-namecheap-client.git
+git clone git@github.com:rnr1721/laravel-namecheap-client.git
 ```
 
 2. Install composer dependencies
