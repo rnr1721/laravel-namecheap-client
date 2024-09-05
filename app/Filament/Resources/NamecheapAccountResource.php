@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Filament\Resources;
+
 use App\Classes\NamecheapWrapper\Contracts\ApiWrapperFactoryServiceInterface;
 
 use Filament\Actions\DeleteAction;
@@ -37,13 +38,13 @@ class NamecheapAccountResource extends Resource
         return $table
             ->columns([
                 Tables\Columns\TextColumn::make('username')
-                ->label('Username')
-                ->sortable()
-                ->searchable(),
+                    ->label('Username')
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('email')
-                ->label('Email')
-                ->sortable()
-                ->searchable()
+                    ->label('Email')
+                    ->sortable()
+                    ->searchable()
             ])
             ->filters([
                 //
@@ -81,5 +82,4 @@ class NamecheapAccountResource extends Resource
     {
         return true;
     }
-    
 }

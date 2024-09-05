@@ -2,22 +2,27 @@
 
 namespace App\Filament\Resources\NamecheapAccountResource\Pages;
 
-use App\Classes\NamecheapWrapper\Contracts\ApiWrapperFactoryServiceInterface;
+use App\Classes\Application\Contracts\AccountServiceInterface;
+use App\Classes\Application\Contracts\DomainServiceInterface;
+use App\Classes\Application\DomainService;
+use App\Classes\Application\Exceptions\NamecheapAccountException;
 use App\Filament\Resources\NamecheapAccountResource;
-use App\Models\NamecheapAccount;
-use Illuminate\Support\Facades\App;
 use Filament\Actions;
 use Filament\Resources\Pages\ViewRecord;
-use Illuminate\Support\Facades\Log;
 
 class ViewNamecheapAccount extends ViewRecord
 {
 
-    protected ApiWrapperFactoryServiceInterface $apiFactory;
+    protected DomainService $domainService;
+    protected AccountServiceInterface $accountService;
     protected string $apiStatusAccounts = 'pending';
     protected string $apiStatusDomains = 'pending';
     protected array $balanceData;
     protected array $domains = [];
+
+    /**
+     * @var array{TotalItems: int, CurrentPage: int, PageSize: int}
+     */
     protected array $paging = [
         'TotalItems' => 0,
         'CurrentPage' => 1,
@@ -29,10 +34,10 @@ class ViewNamecheapAccount extends ViewRecord
     protected static string $resource = NamecheapAccountResource::class;
     protected static string $view = 'filament.pages.namechip-account';
 
-    public function __construct()
+    public function boot(AccountServiceInterface $accountService, DomainServiceInterface $domainService)
     {
-        // We can not inject this normally. Why?
-        $this->apiFactory = App::make(ApiWrapperFactoryServiceInterface::class);
+        $this->accountService = $accountService;
+        $this->domainService = $domainService;
     }
 
     protected function getHeaderActions(): array
@@ -50,62 +55,41 @@ class ViewNamecheapAccount extends ViewRecord
 
     protected function getAccountInfo(): void
     {
-        $api = $this->apiFactory->getNewInstanceFromModel($this->record);
-        $responseRaw = $api->getUsers()->getBalances();
 
-        $response = json_decode($responseRaw, true);
-
-        if (isset($response['ApiResponse']['_Status']) && $response['ApiResponse']['_Status'] === 'OK') {
+        try {
             $this->apiStatusAccounts = 'success';
-            $this->balanceData = $response['ApiResponse']['CommandResponse']['UserGetBalancesResult'] ?? [];
-        } else {
+            $this->balanceData = $this->accountService->getBalances($this->record->username, $this->record->api_key);
+        } catch (NamecheapAccountException $ex) {
             $this->apiStatusAccounts = 'failed';
             $this->balanceData = [
                 'Errors' => [
                     'Error' => [
-                        '__text' => $response['ApiResponse']['Errors']['Error']['__text'] ?? 'Unknown error',
-                        '_Number' => $response['ApiResponse']['Errors']['Error']['_Number'] ?? 'N/A'
+                        '__text' => $ex->getMessage(),
+                        '_Number' => $ex->getCode()
                     ]
                 ]
             ];
         }
-
     }
 
     public function getDomainsList(): void
     {
 
-        $api = $this->apiFactory->getNewInstanceFromModel($this->record);
-        
-        $responseRaw = $api->getDomains()->getList(
+        $result = $this->domainService->getAll(
+            $this->record->username,
+            $this->record->api_key,
             $this->searchQuery,
-            null,
             $this->paging['CurrentPage'],
             $this->paging['PageSize']
         );
-        $response = json_decode($responseRaw, true);
-    
-        if (isset($response['ApiResponse']['CommandResponse']['DomainGetListResult']['Domain'])) {
-            $this->domains = $response['ApiResponse']['CommandResponse']['DomainGetListResult']['Domain'];
-            if (isset($this->domains['_Name'])) {
-                $this->domains = [$this->domains];
-            }
-        } else {
-            $this->domains = [];
-        }
-    
-        if (isset($response['ApiResponse']['CommandResponse']['Paging'])) {
-            $this->paging = array_merge($this->paging, $response['ApiResponse']['CommandResponse']['Paging']);
-        }
-    
-        $this->paging['TotalItems'] = (int)$this->paging['TotalItems'];
-        $this->paging['CurrentPage'] = (int)$this->paging['CurrentPage'];
-        $this->paging['PageSize'] = (int)$this->paging['PageSize'];
-    
+
+        $this->domains = $result['domains'];
+        $this->paging = $result['paging'];
+
         $this->apiStatusDomains = 'success';
     }
 
-    public function search()
+    public function search(): void
     {
         $this->paging['CurrentPage'] = 1;
         $this->getAccountInfo();
@@ -124,5 +108,4 @@ class ViewNamecheapAccount extends ViewRecord
         $this->getAccountInfo();
         $this->getDomainsList();
     }
-
 }
