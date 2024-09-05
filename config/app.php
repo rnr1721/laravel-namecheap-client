@@ -170,7 +170,11 @@ return [
         App\Providers\Filament\AdminPanelProvider::class,
         App\Providers\RouteServiceProvider::class,
         App\Providers\NamechipApiWrapperServiceProvider::class,
-        App\Providers\CountriesProvider::class
+        App\Providers\CountriesProvider::class,
+        App\Providers\AccountProvider::class,
+        App\Providers\DomainProvider::class,
+        App\Providers\DomainDnsProvider::class,
+        App\Providers\PhoneUtilsProvider::class
     ])->toArray(),
 
     /*

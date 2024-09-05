@@ -1,16 +1,21 @@
 <?php
+
 namespace App\Filament\Pages;
 
+use App\Classes\Application\Contracts\DomainServiceInterface;
+use App\Classes\Application\Exceptions\NamecheapDomainException;
 use App\Classes\Countries\Contracts\CountriesInterface;
-use App\Classes\NamecheapWrapper\Contracts\ApiWrapperFactoryServiceInterface;
 use App\Models\NamecheapAccount;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Pages\Page;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+
 class PurchaseDomain extends Page
 {
+    protected CountriesInterface $countries;
+    protected DomainServiceInterface $domainService;
     public ?NamecheapAccount $account = null;
     public $accountId;
     public $domainName;
@@ -48,16 +53,21 @@ class PurchaseDomain extends Page
             abort(404);
         }
     }
+
+    public function boot(DomainServiceInterface $domainService, CountriesInterface $countries)
+    {
+        $this->domainService = $domainService;
+        $this->countries = $countries;
+    }
+
     protected function getFormSchema(): array
     {
-
-        $countries = app(CountriesInterface::class);
 
         return [
             TextInput::make('domainName')
                 ->label(_('Domain Name'))->readOnly()
                 ->required(),
-                Select::make('years')
+            Select::make('years')
                 ->label('Years')
                 ->options([
                     '1' => '1 year',
@@ -86,13 +96,13 @@ class PurchaseDomain extends Page
             TextInput::make('registrantPostalCode')
                 ->label(_('Postal Code'))
                 ->required(),
-                Select::make('registrantCountry')
+            Select::make('registrantCountry')
                 ->label(_('Country'))
-                ->options($countries->getCountriesList())
+                ->options($this->countries->getCountriesList())
                 ->required(),
             Select::make('countryCode')
                 ->label(_('Country Code'))
-                ->options($countries->getCountryCodes())
+                ->options($this->countries->getCountryCodes())
                 ->required(),
             TextInput::make('phoneNumber')
                 ->label(_('Phone Number'))
@@ -130,42 +140,16 @@ class PurchaseDomain extends Page
             'registrantEmailAddress' => ['required', 'email', 'max:255'],
         ];
     }
+
     public function checkDomainAvailability()
     {
-        $apiFactory = app(ApiWrapperFactoryServiceInterface::class);
-        $instance = $apiFactory->getNewInstanceFromModel($this->account);
-        $response = $instance->getDomains()->check($this->domainName);
-        if (is_string($response)) {
-            $response = json_decode($response, true);
-        }
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            $this->handleError('Failed to process API response.');
-            return;
-        }
-        if (!isset($response['ApiResponse']) || !isset($response['ApiResponse']['CommandResponse'])) {
-            $this->handleError('Unexpected API response structure.');
-            return;
-        }
-        $commandResponse = $response['ApiResponse']['CommandResponse'];
-        if (!isset($commandResponse['DomainCheckResult'])) {
-            $this->handleError('Unable to check domain availability.');
-            return;
-        }
-        $checkResult = $commandResponse['DomainCheckResult'];
-        if (!isset($checkResult['_Available'])) {
-            $this->handleError('Unable to determine domain availability.');
-            return;
-        }
-        if ($checkResult['_Available'] === 'true') {
-            $this->domainStatus = 'available';
+
+        try {
+            $result = $this->domainService->isAvailable($this->account->username, $this->account->api_key, $this->domainName);
             $this->domainMessage = 'Domain is available for registration.';
-            if (isset($checkResult['_IsPremiumName']) && $checkResult['_IsPremiumName'] === 'true') {
-                $this->premiumInfo = [
-                    'registrationPrice' => $checkResult['_PremiumRegistrationPrice'] ?? 'N/A',
-                    'renewalPrice' => $checkResult['_PremiumRenewalPrice'] ?? 'N/A',
-                    'restorePrice' => $checkResult['_PremiumRestorePrice'] ?? 'N/A',
-                    'transferPrice' => $checkResult['_PremiumTransferPrice'] ?? 'N/A',
-                ];
+            $this->domainStatus = 'available';
+            if (isset($result['premium_info'])) {
+                $this->premiumInfo = $result['premium_info'];
                 $this->domainMessage .= ' This is a premium domain.';
             }
             Notification::make()
@@ -173,16 +157,12 @@ class PurchaseDomain extends Page
                 ->title('Domain is available')
                 ->body($this->domainMessage)
                 ->send();
-        } else {
+        } catch (NamecheapDomainException $ex) {
             $this->domainStatus = 'unavailable';
-            $this->domainMessage = 'Domain is not available for registration.';
-            Notification::make()
-                ->warning()
-                ->title('Domain is not available')
-                ->body($this->domainMessage)
-                ->send();
+            $this->handleError($ex->getMessage());
         }
     }
+
     private function handleError($message)
     {
         $this->domainStatus = 'error';
@@ -193,97 +173,33 @@ class PurchaseDomain extends Page
             ->body($this->domainMessage)
             ->send();
     }
+
     public function purchaseDomain()
     {
-        $data = $this->form->getState();
-        $formattedPhone = $this->formatPhoneNumber($data['countryCode'], $data['phoneNumber']);
-        $domainInfo = [
-            'domainName' => $data['domainName'],
-            'years' => $data['years'],
-        ];
-        $contactInfo = [
-            'registrantFirstName' => $data['registrantFirstName'],
-            'registrantLastName' => $data['registrantLastName'],
-            'registrantAddress1' => $data['registrantAddress1'],
-            'registrantCity' => $data['registrantCity'],
-            'registrantStateProvince' => $data['registrantStateProvince'],
-            'registrantPostalCode' => $data['registrantPostalCode'],
-            'registrantCountry' => $data['registrantCountry'],
-            'registrantPhone' => $formattedPhone,
-            'registrantEmailAddress' => $data['registrantEmailAddress'],
-            // Repeat some data for tech, admin, and auxBilling
-            'techFirstName' => $data['registrantFirstName'],
-            'techLastName' => $data['registrantLastName'],
-            'techAddress1' => $data['registrantAddress1'],
-            'techCity' => $data['registrantCity'],
-            'techStateProvince' => $data['registrantStateProvince'],
-            'techPostalCode' => $data['registrantPostalCode'],
-            'techCountry' => $data['registrantCountry'],
-            'techPhone' => $formattedPhone,
-            'techEmailAddress' => $data['registrantEmailAddress'],
-            'adminFirstName' => $data['registrantFirstName'],
-            'adminLastName' => $data['registrantLastName'],
-            'adminAddress1' => $data['registrantAddress1'],
-            'adminCity' => $data['registrantCity'],
-            'adminStateProvince' => $data['registrantStateProvince'],
-            'adminPostalCode' => $data['registrantPostalCode'],
-            'adminCountry' => $data['registrantCountry'],
-            'adminPhone' => $formattedPhone,
-            'adminEmailAddress' => $data['registrantEmailAddress'],
-            'auxBillingFirstName' => $data['registrantFirstName'],
-            'auxBillingLastName' => $data['registrantLastName'],
-            'auxBillingAddress1' => $data['registrantAddress1'],
-            'auxBillingCity' => $data['registrantCity'],
-            'auxBillingStateProvince' => $data['registrantStateProvince'],
-            'auxBillingPostalCode' => $data['registrantPostalCode'],
-            'auxBillingCountry' => $data['registrantCountry'],
-            'auxBillingPhone' => $formattedPhone,
-            'auxBillingEmailAddress' => $data['registrantEmailAddress'],
-        ];
-        $apiFactory = app(ApiWrapperFactoryServiceInterface::class);
-        $instance = $apiFactory->getNewInstanceFromModel($this->account);
+        $data = $data = $this->form->getState();
         try {
-            $result = $instance->getDomains()->create($domainInfo, $contactInfo);
-            if (is_string($result)) {
-                $result = json_decode($result, true);
-            }
-            if (isset($result['ApiResponse'])) {
-                $apiResponse = $result['ApiResponse'];
-                if ($apiResponse['_Status'] === 'OK') {
-                    $domainCreateResult = $apiResponse['CommandResponse']['DomainCreateResult'];
-                    $domain = $domainCreateResult['_Domain'];
-                    $chargedAmount = $domainCreateResult['_ChargedAmount'];
-                    Notification::make()
-                        ->success()
-                        ->title('Domain purchased successfully!')
-                        ->body("Domain {$domain} has been registered for {$data['years']} year(s). Charged amount: {$chargedAmount}")
-                        ->send();
-                    $this->resetForm();
-                } else {
-                    $errorMessage = $apiResponse['Errors']['Error']['__text'] ?? 'Unknown error';
-                    throw new \Exception("Domain registration failed: $errorMessage");
-                }
-            } else {
-                throw new \Exception('Invalid API response');
-            }
-        } catch (\Exception $e) {
+            $domainCreateResult = $this->domainService->purchaseDomain($this->account->username, $this->account->api_key, $data);
+            $domain = $domainCreateResult['_Domain'];
+            $chargedAmount = $domainCreateResult['_ChargedAmount'];
+            Notification::make()
+                ->success()
+                ->title('Domain purchased successfully!')
+                ->body("Domain {$domain} has been registered for {$data['years']} year(s). Charged amount: {$chargedAmount}")
+                ->send();
+            $this->resetForm();
+        } catch (NamecheapDomainException $ex) {
             Notification::make()
                 ->danger()
                 ->title('There was an error purchasing the domain.')
-                ->body($e->getMessage())
+                ->body($ex->getMessage())
                 ->send();
         }
     }
+
     private function resetForm()
     {
         $this->form->fill();
         $this->domainStatus = null;
         $this->domainName = '';
-    }
-    private function formatPhoneNumber($countryCode, $phoneNumber)
-    {
-        $digits = preg_replace('/[^0-9]/', '', $phoneNumber);
-        $countryCode = ltrim($countryCode, '+');
-        return '+' . $countryCode . '.' . $digits;
     }
 }

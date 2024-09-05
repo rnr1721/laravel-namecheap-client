@@ -41,6 +41,45 @@ class Countries implements CountriesInterface
         return $result;
     }
 
+    public function findMatchingCountryCode($countryCode, $availableCountryCodes): string
+    {
+        $countryCode = ltrim($countryCode, '+');
+
+        foreach ($availableCountryCodes as $code => $label) {
+            if (strpos($label, $countryCode) !== false) {
+                return $code;
+            }
+        }
+
+        foreach ($availableCountryCodes as $code => $label) {
+            if (strpos($label, substr($countryCode, 0, 2)) !== false) {
+                return $code;
+            }
+        }
+
+        return $countryCode;
+    }
+
+    public function findMatchingCountry($country, $availableCountries): string
+    {
+
+        $country = strtoupper($country);
+
+        foreach ($availableCountries as $code => $name) {
+            if (strtoupper($code) === $country) {
+                return $code;
+            }
+        }
+
+        foreach ($availableCountries as $code => $name) {
+            if (stripos($name, $country) !== false) {
+                return $code;
+            }
+        }
+
+        return $country;
+    }
+
     private function populateCountries(): void
     {
         $this->countries = [
