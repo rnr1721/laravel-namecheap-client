@@ -46,10 +46,6 @@ class EditDomainContacts extends Page implements HasForms
 
     public function mount($accountId = null, $domain = null): void
     {
-        if (!auth()->check()) {
-            Log::warning('Unauthorized access attempt to EditDomainContacts page');
-            redirect('/admin');
-        }
 
         if ($accountId === null || $domain === null) {
             Log::error('Invalid accountId or domain', ['accountId' => $accountId, 'domain' => $domain]);
