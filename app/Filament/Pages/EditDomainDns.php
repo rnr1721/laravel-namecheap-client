@@ -36,9 +36,6 @@ class EditDomainDns extends Page implements Forms\Contracts\HasForms
 
     public function mount($accountId = null, $domain = null): void
     {
-        if (!auth()->check()) {
-            redirect('/admin');
-        }
 
         if ($accountId === null || $domain === null) {
             abort(404);

@@ -21,8 +21,17 @@ Route::get('/', function () {
     return view('welcome');
 });
 
-Route::get('/admin/purchase-domain/{accountId}', PurchaseDomain::class)->name('filament.pages.purchase-domain');
 
-Route::get('/admin/edit-domain-dns/{accountId}/{domain}', EditDomainDns::class)->name('filament.pages.edit-domain-dns');
 
-Route::get('/admin/edit-domain-contacts/{accountId}/{domain}', EditDomainContacts::class)->name('filament.pages.edit-domain-contacts');
+Route::middleware(['auth'])->group(function () {
+
+    Route::get('/admin/purchase-domain/{accountId}', PurchaseDomain::class)->name('filament.pages.purchase-domain');
+
+    Route::get('/admin/edit-domain-dns/{accountId}/{domain}', EditDomainDns::class)->name('filament.pages.edit-domain-dns');
+
+    Route::get('/admin/edit-domain-contacts/{accountId}/{domain}', EditDomainContacts::class)->name('filament.pages.edit-domain-contacts');
+});
+
+Route::get('/login', function () {
+    return redirect(route('filament.admin.auth.login'));
+})->name('login');
