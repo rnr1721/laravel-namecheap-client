@@ -7,11 +7,9 @@ use App\Classes\Application\Exceptions\NamecheapDomainDnsException;
 use Filament\Pages\Page;
 use App\Models\NamecheapAccount;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use App\Classes\NamecheapWrapper\Contracts\ApiWrapperFactoryServiceInterface;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\Log;
 
 class EditDomainDns extends Page implements Forms\Contracts\HasForms
 {
@@ -22,15 +20,13 @@ class EditDomainDns extends Page implements Forms\Contracts\HasForms
     protected static string $view = 'filament.pages.edit-domain-dns';
 
     protected DomainDnsServiceInterface $domainDnsService;
-    protected ApiWrapperFactoryServiceInterface $apiFactory;
     public ?NamecheapAccount $account = null;
     public $accountId;
     public ?string $domain = null;
     public ?array $dnsRecords = [];
 
-    public function boot(ApiWrapperFactoryServiceInterface $apiFactory, DomainDnsServiceInterface $domainDnsService)
+    public function boot(DomainDnsServiceInterface $domainDnsService)
     {
-        $this->apiFactory = $apiFactory;
         $this->domainDnsService = $domainDnsService;
     }
 
@@ -130,13 +126,4 @@ class EditDomainDns extends Page implements Forms\Contracts\HasForms
         }
     }
 
-    protected function getDomainSLD(): string
-    {
-        return explode('.', $this->domain)[0];
-    }
-
-    protected function getDomainTLD(): string
-    {
-        return implode('.', array_slice(explode('.', $this->domain), 1));
-    }
 }

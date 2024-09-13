@@ -3,10 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Classes\Application\Contracts\DomainServiceInterface;
-use App\Classes\Application\Contracts\PhoneUtilsInterface;
 use App\Classes\Application\Exceptions\NamecheapDomainException;
 use App\Classes\Countries\Contracts\CountriesInterface;
-use App\Classes\NamecheapWrapper\Contracts\ApiWrapperFactoryServiceInterface;
 use App\Models\NamecheapAccount;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Select;
@@ -23,9 +21,7 @@ class EditDomainContacts extends Page implements HasForms
     use InteractsWithForms;
 
     protected DomainServiceInterface $domainService;
-    protected PhoneUtilsInterface $phoneUtils;
     protected CountriesInterface $countries;
-    protected ApiWrapperFactoryServiceInterface $apiFactory;
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static string $view = 'filament.pages.edit-domain-contacts';
     protected static bool $shouldRegisterNavigation = false;
@@ -36,12 +32,10 @@ class EditDomainContacts extends Page implements HasForms
     public ?string $domain = null;
     public $contacts = [];
 
-    public function boot(ApiWrapperFactoryServiceInterface $apiFactory, DomainServiceInterface $domainService, CountriesInterface $countries, PhoneUtilsInterface $phoneUtils)
+    public function boot(DomainServiceInterface $domainService, CountriesInterface $countries)
     {
-        $this->apiFactory = $apiFactory;
         $this->domainService = $domainService;
         $this->countries = $countries;
-        $this->phoneUtils = $phoneUtils;
     }
 
     public function mount($accountId = null, $domain = null): void
